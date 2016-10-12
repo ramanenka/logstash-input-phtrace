@@ -43,10 +43,6 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
     self.server_socket = new_server_socket
   end
 
-  def run(queue)
-    run_server(queue)
-  end
-
   def stop
     # force close all sockets which will escape any blocking read with a IO exception
     # and any thread using them will exit.
@@ -63,9 +59,7 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
     server_socket.close rescue nil
   end
 
-  private
-
-  def run_server(queue)
+  def run(queue)
     while !stop?
       begin
         socket = add_connection_socket(server_socket.accept)
@@ -83,7 +77,7 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
   end
 
   def server_connection_thread(queue, socket)
-    Thread.new(queue, socket, {}) do |q, s|
+    Thread.new(queue, socket) do |q, s|
       begin
         @logger.debug? && @logger.debug("Accepted connection", :client => s.peer, :server => "#{@host}:#{@port}")
         handle_socket(s, s.peeraddr[3], s.peeraddr[1], q, @codec.clone)
@@ -109,6 +103,21 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
   ensure
     # catch all rescue nil on close to discard any close errors or invalid socket
     socket.close rescue nil
+  end
+
+  def read(socket)
+    remain = size = socket.sysread(8).unpack("Q")[0]
+    @logger.debug? && @logger.debug("Going to read #{size} bytes")
+
+    result = String.new
+    begin
+      data = socket.sysread(remain)
+      remain -= data.bytesize
+      result << data
+      @logger.debug? && @logger.debug("Received #{data.bytesize} bytes, remain #{remain}")
+    end while remain > 0
+
+    return result
   end
 
   public
@@ -207,11 +216,6 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
       "type" => "function_end",
       "tsc" => tsc
     })
-  end
-
-  def read(socket)
-    size = socket.sysread(8).unpack("Q")[0]
-    socket.sysread(size)
   end
 
   def new_server_socket

@@ -83,21 +83,21 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
   end
 
   def server_connection_thread(queue, socket)
-    Thread.new(queue, socket, {}) do |q, s, thread_globals|
+    Thread.new(queue, socket, {}) do |q, s|
       begin
         @logger.debug? && @logger.debug("Accepted connection", :client => s.peer, :server => "#{@host}:#{@port}")
-        handle_socket(s, s.peeraddr[3], s.peeraddr[1], q, @codec.clone, thread_globals)
+        handle_socket(s, s.peeraddr[3], s.peeraddr[1], q, @codec.clone)
       ensure
         delete_connection_socket(s)
       end
     end
   end
 
-  def handle_socket(socket, client_address, client_port, queue, codec, thread_globals)
+  def handle_socket(socket, client_address, client_port, queue, codec)
     peer = "#{client_address}:#{client_port}"
     while !stop?
       data = read(socket)
-      decode(queue, data, thread_globals, client_address, client_port)
+      decode(queue, data, client_address, client_port)
     end
   rescue EOFError
     @logger.debug? && @logger.debug("Connection closed", :client => peer)
@@ -112,7 +112,7 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
   end
 
   public
-  def decode(queue, data, thread_globals, client_address, client_port)
+  def decode(queue, data, client_address, client_port)
     pos = 0
 
     while pos < data.bytesize do
@@ -126,13 +126,13 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
       
       case type
       when 1
-        event = decode_msg_request_begin(data, pos, thread_globals)
+        event = decode_msg_request_begin(data, pos)
       when 2
-        event = decode_msg_request_end(data, pos, thread_globals)
+        event = decode_msg_request_end(data, pos)
       when 3
-        event = decode_msg_function_begin(data, pos, thread_globals)
+        event = decode_msg_function_begin(data, pos)
       when 4
-        event = decode_msg_function_end(data, pos, thread_globals)
+        event = decode_msg_function_end(data, pos)
       else
         raise(UnknownMessageError)
       end
@@ -148,27 +148,27 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
   end
   
   protected
-  def decode_msg_request_begin(data, pos, thread_globals)
+  def decode_msg_request_begin(data, pos)
     tsc = data.byteslice(pos..pos + 8).unpack("Q")[0]
     pos += 8
 
-    thread_globals["request_uuid"] = uuid_unpack(data, pos)
+    Thread.current["request_uuid"] = uuid_unpack(data, pos)
     pos += 16
     
     return LogStash::Event.new({
-      "id" => thread_globals["request_uuid"],
+      "id" => Thread.current["request_uuid"],
       "type" => "request_begin",
       "tsc" => tsc
     })
   end
   
   protected
-  def decode_msg_request_end(data, pos, thread_globals)
+  def decode_msg_request_end(data, pos)
     tsc = data.byteslice(pos..pos + 8).unpack("Q")[0]
     pos += 8
 
     return LogStash::Event.new({
-      "id" => thread_globals["request_uuid"],
+      "id" => Thread.current["request_uuid"],
       "type" => "request_end",
       "tsc" => tsc
     })
@@ -180,7 +180,7 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
   end
 
   protected
-  def decode_msg_function_begin(data, pos, thread_globals)
+  def decode_msg_function_begin(data, pos)
     tsc = data.byteslice(pos..pos + 8).unpack("Q")[0]
     pos += 8
 
@@ -190,7 +190,7 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
     symbol_name = data.byteslice(pos..pos + symbol_length).unpack("Z*")[0]
     
     return LogStash::Event.new({
-      "request_id" => thread_globals["request_uuid"],
+      "request_id" => Thread.current["request_uuid"],
       "type" => "function_begin",
       "tsc" => tsc,
       "symbol" => symbol_name
@@ -198,12 +198,12 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
   end
 
   protected
-  def decode_msg_function_end(data, pos, thread_globals)
+  def decode_msg_function_end(data, pos)
     tsc = data.byteslice(pos..pos + 8).unpack("Q")[0]
     pos += 8
 
     return LogStash::Event.new({
-      "request_id" => thread_globals["request_uuid"],
+      "request_id" => Thread.current["request_uuid"],
       "type" => "function_end",
       "tsc" => tsc
     })

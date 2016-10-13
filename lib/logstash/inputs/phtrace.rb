@@ -3,6 +3,7 @@
 require "logstash/inputs/base"
 require "logstash/namespace"
 require "logstash/util/socket_peer"
+require "logstash/inputs/phtrace/light_event"
 
 require "socket"
 
@@ -198,7 +199,7 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
 
     symbol_name = data.byteslice(pos..pos + symbol_length).unpack("Z*")[0]
     
-    return LogStash::Event.new({
+    return LogStash::Inputs::PhtraceLightEvent.new({
       "request_id" => Thread.current["request_uuid"],
       "type" => "function_begin",
       "tsc" => tsc,
@@ -211,7 +212,7 @@ class LogStash::Inputs::Phtrace < LogStash::Inputs::Base
     tsc = data.byteslice(pos..pos + 8).unpack("Q")[0]
     pos += 8
 
-    return LogStash::Event.new({
+    return LogStash::Inputs::PhtraceLightEvent.new({
       "request_id" => Thread.current["request_uuid"],
       "type" => "function_end",
       "tsc" => tsc

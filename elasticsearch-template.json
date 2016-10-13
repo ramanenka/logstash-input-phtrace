@@ -1,0 +1,29 @@
+{
+    "template": "phtrace*",
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0,
+        "refresh_interval": "10s"
+    },
+    "mappings": {
+        "function_begin": {
+            "properties": {
+                "symbol": {"type": "string", "index": "not_analyzed"},
+                "request_id": {"type": "string", "index": "not_analyzed"},
+                "type": {"type": "string", "index": "not_analyzed"},
+                "host": {"type": "string", "index": "not_analyzed"},
+                "@timestamp": {"type": "string", "index": "not_analyzed"},
+                "@version": {"type": "string", "index": "not_analyzed"}
+            }
+        },
+        "function_end": {
+            "properties": {
+                "request_id": {"type": "string", "index": "not_analyzed"},
+                "type": {"type": "string", "index": "not_analyzed"},
+                "host": {"type": "string", "index": "not_analyzed"},
+                "@timestamp": {"type": "string", "index": "not_analyzed"},
+                "@version": {"type": "string", "index": "not_analyzed"}
+            }
+        }
+    }
+}
